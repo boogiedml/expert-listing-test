@@ -16,30 +16,14 @@ pnpm lint
 pnpm build
 ```
 
-## What I built
+## Write-up
 
-A single-page Next.js app (App Router, React, TypeScript, Tailwind). Search state lives in the component — no Redux or extra UI kit.
+I built a country typeahead in the existing Next.js + Tailwind app. REST Countries v3.1 is deprecated (v5 wants a key), so I used countries.dev instead of faking data or wiring up an API key for a screening task.
 
-The brief pointed at REST Countries v3.1:
+Search stays in the browser on purpose. A BFF would have been cleaner for caching, but it felt like extra surface area here. Debounce is 350ms, nothing fires under 2 characters after trim, and I cap results at 8. Stale responses use AbortController: a new search aborts the previous one so a slow `"nig"` can’t overwrite `"nige"`. Flags go through Flagcdn + `next/image` because the Wikimedia URLs from the API were unreliable.
 
-`https://restcountries.com/v3.1/name/{query}?fields=name,cca2,flags,capital`
+No extra UI or state libraries — local React state is enough. Keyboard nav (arrows, Home/End, Enter, Escape) stays on the input so focus never jumps into the list. Loading is skeleton rows that match the result layout so the dropdown doesn’t jump.
 
-That version is gone now (deprecated payload; v5 wants an API key). I used the public, keyless equivalent instead:
+If this had real traffic I wouldn’t let the client hit a third-party API. I’d put a thin backend in front, cache by normalised query, collapse duplicate in-flight lookups, rate-limit, and watch error rate / latency. Debounce and the min-length check would still live on the client.
 
-`https://countries.dev/name/{query}?fields=name,alpha2Code,flags,capital&limit=8`
-
-- `200` — matches
-- `404` — empty list (“No countries found.”)
-- anything else — “Something went wrong. Please try again.”
-
-The UI never dumps raw API errors.
-
-Search waits 350ms after typing, trims the query, and ignores anything under 2 characters. That is the debounce: without it every keystroke would hit the network.
-
-Out-of-order responses are handled with `AbortController`. A new search aborts the previous one; `AbortError` is ignored so a slow `"nig"` response cannot overwrite `"nige"`.
-
-Keyboard: arrows move, Home/End jump, Enter selects (or retries after an error), Escape closes. Focus stays on the input. Combobox ARIA is wired (`aria-expanded`, `aria-controls`, `aria-activedescendant`, listbox/options). A live region announces status for screen readers.
-
-## If this had real traffic
-
-I would not ship the browser straight to a third-party API. Put a small backend in front, cache by normalised query, collapse duplicate in-flight lookups, cap result size (already at 8), rate-limit, and watch error rate / latency. Debounce and the min-length check stay useful on the client.
+I didn’t add a test suite for this. I’d unit-test query trim/min-length, debounce, and abort (slow first request must not win), then a few Playwright cases for keyboard nav, empty/error, and selecting a result.
