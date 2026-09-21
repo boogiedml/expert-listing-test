@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Country search
 
-## Getting Started
+Autocomplete that queries countries as you type. Pick a result and it fills the input plus a small summary underneath.
 
-First, run the development server:
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+[http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm lint
+pnpm build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## What I built
 
-## Learn More
+A single-page Next.js app (App Router, React, TypeScript, Tailwind). Search state lives in the component — no Redux or extra UI kit.
 
-To learn more about Next.js, take a look at the following resources:
+The brief pointed at REST Countries v3.1:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`https://restcountries.com/v3.1/name/{query}?fields=name,cca2,flags,capital`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+That version is gone now (deprecated payload; v5 wants an API key). I used the public, keyless equivalent instead:
 
-## Deploy on Vercel
+`https://countries.dev/name/{query}?fields=name,alpha2Code,flags,capital&limit=8`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `200` — matches
+- `404` — empty list (“No countries found.”)
+- anything else — “Something went wrong. Please try again.”
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The UI never dumps raw API errors.
+
+Search waits 350ms after typing, trims the query, and ignores anything under 2 characters. That is the debounce: without it every keystroke would hit the network.
+
+Out-of-order responses are handled with `AbortController`. A new search aborts the previous one; `AbortError` is ignored so a slow `"nig"` response cannot overwrite `"nige"`.
+
+Keyboard: arrows move, Home/End jump, Enter selects (or retries after an error), Escape closes. Focus stays on the input. Combobox ARIA is wired (`aria-expanded`, `aria-controls`, `aria-activedescendant`, listbox/options). A live region announces status for screen readers.
+
+## If this had real traffic
+
+I would not ship the browser straight to a third-party API. Put a small backend in front, cache by normalised query, collapse duplicate in-flight lookups, cap result size (already at 8), rate-limit, and watch error rate / latency. Debounce and the min-length check stay useful on the client.
